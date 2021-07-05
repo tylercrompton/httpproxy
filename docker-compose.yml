@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  app:
+    image: python:3.9
+    command: sh -c "python proxy/__init__.py"
+    ports:
+      - 80:80
+      - 443:443
+    working_dir: /app
+    volumes:
+      - ./:/app
+  mongo:
+    image: mongo:4.4
+    volumes:
+      - proxy-server-db:/data/db
+
+volumes:
+  proxy-server-db:

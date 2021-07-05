@@ -1,9 +1,13 @@
-from os import getenv
 from urllib.parse import urlparse, urlunparse
 
-from twisted.internet import reactor
 from twisted.web.http import HTTPFactory
 from twisted.web.proxy import Proxy, ProxyRequest
+
+__all__ = (
+    'CachingProxy',
+    'CachingProxyFactory',
+    'CachingProxyRequest',
+)
 
 
 class CachingProxyRequest(ProxyRequest):
@@ -36,14 +40,3 @@ class CachingProxy(Proxy):
 class CachingProxyFactory(HTTPFactory):
     def buildProtocol(self, address):
         return CachingProxy()
-
-
-if __name__ == '__main__':
-    # just type hinting for PyCharm
-    from twisted.internet.posixbase import PosixReactorBase
-    # noinspection PyTypeChecker
-    reactor = reactor  # type: PosixReactorBase
-
-    reactor.listenTCP(getenv('PORT', 8080), CachingProxyFactory())
-    print('Listening on port 8080…')
-    reactor.run()
