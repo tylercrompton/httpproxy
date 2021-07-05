@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 twisted = "*"
+pymongo = "*"
 
 [dev-packages]
 
