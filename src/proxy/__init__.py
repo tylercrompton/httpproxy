@@ -1,16 +1,30 @@
 from urllib.parse import urlparse, urlunparse
 
 from twisted.web.http import HTTPFactory
-from twisted.web.proxy import Proxy, ProxyRequest
+from twisted.web.proxy import Proxy, ProxyClient, ProxyClientFactory, ProxyRequest
 
 __all__ = (
     'CachingProxy',
+    'CachingProxyClient',
+    'CachingProxyClientFactory',
     'CachingProxyFactory',
     'CachingProxyRequest',
 )
 
 
+class CachingProxyClient(ProxyClient):
+    def handleResponseEnd(self):
+        super().handleResponseEnd()
+        pass
+
+
+class CachingProxyClientFactory(ProxyClientFactory):
+    protocol = CachingProxyClient
+
+
 class CachingProxyRequest(ProxyRequest):
+    protocols = {b"http": CachingProxyClientFactory}
+
     # `twisted.web.http.Request.requestReceived` is bugged. It expects the
     # `path` parameter to be a URI, but it's actually just the path component of
     # the URI. `twisted.web.proxy.ProxyRequest.process` incorrectly assumes that
@@ -32,11 +46,19 @@ class CachingProxyRequest(ProxyRequest):
 
         super().process()
 
-
-class CachingProxy(Proxy):
-    requestFactory = CachingProxyRequest
+        pass
 
 
 class CachingProxyFactory(HTTPFactory):
     def buildProtocol(self, address):
         return CachingProxy()
+
+    def log(self, request=None):
+        super().log(request)
+
+        # Cache response here.
+
+
+class CachingProxy(Proxy):
+    factory = CachingProxyFactory
+    requestFactory = CachingProxyRequest
