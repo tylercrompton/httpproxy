@@ -1,7 +1,12 @@
+import pymongo
+from hashlib import sha256
 from urllib.parse import urlparse, urlunparse
 
 from twisted.web.http import HTTPFactory
 from twisted.web.proxy import Proxy, ProxyClient, ProxyClientFactory, ProxyRequest
+
+from cache import collection
+from cache.drivers import MongoDBCacheDriver
 
 __all__ = (
     'CachingProxy',
@@ -23,7 +28,7 @@ class CachingProxyClientFactory(ProxyClientFactory):
 
 
 class CachingProxyRequest(ProxyRequest):
-    protocols = {b"http": CachingProxyClientFactory}
+    protocols = {b'http': CachingProxyClientFactory}
 
     # `twisted.web.http.Request.requestReceived` is bugged. It expects the
     # `path` parameter to be a URI, but it's actually just the path component of
@@ -44,19 +49,45 @@ class CachingProxyRequest(ProxyRequest):
 
         self.uri = urlunparse((scheme, netloc, *parsed[2:]))
 
-        super().process()
-
-        pass
+        parsed = urlparse(self.uri)
+        protocol = parsed[0]
+        host = parsed[1].decode("ascii")
+        port = self.ports[protocol]
+        if ":" in host:
+            host, port = host.split(":")
+            port = int(port)
+        rest = urlunparse((b"", b"") + parsed[2:])
+        if not rest:
+            rest = rest + b"/"
+        class_ = self.protocols[protocol]
+        headers = self.getAllHeaders().copy()
+        if b"host" not in headers:
+            headers[b"host"] = host.encode("ascii")
+        self.content.seek(0, 0)
+        s = self.content.read()
+        clientFactory = class_(self.method, rest, self.clientproto, headers, s, self)
+        self.reactor.connectTCP(host, port, clientFactory)
 
 
 class CachingProxyFactory(HTTPFactory):
+    _driver = MongoDBCacheDriver(collection)
+
     def buildProtocol(self, address):
         return CachingProxy()
 
     def log(self, request=None):
         super().log(request)
 
+        uri_digest = sha256(self.uri).hexdigest()
+
         # Cache response here.
+        self._driver.cache_response(
+            self.uri,
+            None,
+            self.content.getvalue(),
+        )
+        # with open(f'data/{uri_digest}', 'bw') as cached_response_file:
+        #     cached_response_file.write(self.content.getvalue())
 
 
 class CachingProxy(Proxy):
